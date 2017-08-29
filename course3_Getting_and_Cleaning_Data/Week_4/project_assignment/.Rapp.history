@@ -1,0 +1,149 @@
+x <- 1:4;y <- 2
+x+y
+x <- c(17, 14, 4, 5, 13, 12, 10)
+x[x>10] <- 4
+x
+getwd()
+dir()
+data <- read.csv("hw1_data.csv")
+data
+head(data)
+head(data,2
+)
+length(data)
+rows(data)
+data.rows
+data.rows()
+row.names(data)
+nrows(data)
+nrow(data)
+data
+colnames(data)
+tail(data,2)
+data[47]
+data[47,]
+sumarize(data)
+sumary(data)
+summary(data)
+sum(is.na(data$Ozone))
+table(is.na(data$Ozone))
+bad <- is.na(data$Ozone)
+data$Ozone[!bad]
+good <- data$Ozone[!bad]
+mean(good)
+selection <- data[Ozone > 31, Temp > 90]
+colnames(data)
+selection <- data[Ozone > 31]
+selection <- data[data$Ozone > 31, data$Temp > 90]
+data
+selection <- data[data$Ozone > 31, data$Temp > 90]
+selection <- data[data$Ozone > 31]
+selection <- data[data[1] > 31]
+select
+selection
+?'['
+selection <- data[data[1] > 31,]
+data[data$Ozone > 31,]
+data[data$Ozone > 31 && data$Temp > 90,]
+data[data$Ozone > 31 & data$Temp > 90,]
+data[data$Ozone > 31 & data$Temp > 90,2]
+selection <- data[data$Ozone > 31 & data$Temp > 90,2]
+mean(selection)
+bad <- is.na(selection)
+mean(selection[!bad])
+selection <- data[data$Ozone > 31 & data$Temp > 90,data$Temp]
+colnames(data)
+selection <- data[data$Month == 6,4]
+sele
+selection
+bad <- is.na(selection)
+bad
+mean(selection[!bad])
+selection <- data[data$Month == 5,1]
+bad <- is.na(selection)
+bad
+max
+max(selection[!bad])
+x <- c(4,TRUE)
+class(x)
+head(data,2)
+nrow(data)
+tail(data,2)
+data$Ozone[47]
+sum(is.na(data$Ozone))
+bad <- is.na(data$Ozone)
+mean(data$Ozone[!bad])
+colnames(data)
+selection <- data[data$Ozone > 31 & data$Temp > 90,4]
+bad <- is.na(selection)
+mean(selection[!bad])
+selection <- data[data$Ozone > 31 & data$Temp > 90,2]
+bad <- is.na(selection)
+mean(selection[!bad])
+selection <- data[data$Month == 6,4]
+bad <- is.na(selection)
+mean(selection[!bad])
+selection <- data[data$Month == 5,1]
+bad <- is.na(selection)
+max(selection[!bad])
+x <- (4,"a",TRUE)
+x <- c(4,"a",TRUE)
+class(x)
+x <- 1:4;y <- 2:3
+x+y
+class(x+y)
+a <- x+y
+a
+class(a)
+head(data,2)
+nrow(data)
+tail(data,2)
+data$Ozone[47]
+sum(is.na(data$Ozone))
+bad <- is.na(data$Ozone)
+mean(data$Ozone[!bad])
+selection <- data[data$Ozone > 31 & data$Temp > 90,2]
+bad <- is.na(selection)
+mean(selection[!bad])
+selection <- data[data$Month == 6,4]
+bad <- is.na(selection)
+mean(selection[!bad])
+selection <- data[data$Month == 5,1]
+bad <- is.na(selection)
+max(selection[!bad])
+R.version.string
+install.packages("swirl")
+packageVersion("swirl")
+libray(swirl)
+library(swirl)
+ls()
+rm(list=ls())
+swirl()
+install_from_swirl("R Programming")
+swirl()
+install.packages("rJava",type='source')
+install.packages("rJava")
+install.packages("xlsx")
+library(xlsx)
+library(rJava)#
+.jinit()#
+.jcall("java/lang/System", "S", "getProperty", "java.runtime.version")
+library(rJava).jinit().jcall("java/lang/System","S","getProperty","java.runtime.version")
+install.packages("rJava",,"http://rforge.net/",type="source")
+getwd()
+setwd("/Users/coichedid/Projetos/Data_Science/datasciencecoursera/course3_Getting_and_Cleaning_Data/Week_4/project_assignment")
+pwd
+ls
+ls()
+dir()
+source("./run_analysis.R")
+ls()
+groupeddata
+source("./run_analysis.R")
+source("./run_analysis.R")
+a <- source("./run_analysis.R")
+class(a)
+a
+names(a)
+a$value
+class(a$value)
