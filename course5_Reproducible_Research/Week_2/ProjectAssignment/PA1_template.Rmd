@@ -1,0 +1,301 @@
+--- 
+title: "Reproducible Research: Peer Assessment 1"
+output: 
+  html_document:
+    css: stylesheet.css
+    keep_md: yes
+---
+
+```{r setup, echo=TRUE,include=FALSE}
+knitr::opts_chunk$set(echo = TRUE,fig.path = 'figure/')
+```
+## Introduction  
+Data is stored in a CSV file, compressed in "activity.zip" in current working dir.  
+Data consists of two months (October and November of 2012) of one aleatory device.  
+There are 17,568 observations of variables:  
+
+* steps: Number of steps taking in a 5-minute interval (missing values are coded as NA)  
+* date: Day of observation formated as YYYY-MM-DD  
+* interval: identifier for the 5-minute interval of current day  
+
+## Loading and preprocessing the data  
+Load required packages
+```{r package_load}
+library(tidyr)
+library(stringr)
+library(dplyr)
+library(ggplot2)
+library(xtable)
+library(scales)
+```
+
+Unzip file, then read as CSV  
+```{r read_raw_data}
+d <- read.csv(unz("activity.zip","activity.csv"), stringsAsFactors = F,colClasses =   
+                  c("integer","Date","integer"))
+```  
+
+Better create one variable per 5-minute as agregations mostly are per day, spreading observations  
+First standardize "interval" variable as it has 1, 2, 3 or 4 digits depends on time measured
+```{r prepareObservations}
+## Standardize interval
+## 1. Break interval into separated digits
+## 2. Fill NAs with zeros
+## 3. Cast char matrix to num matrix
+
+## One digit intervals
+oneDigInterval <- str_match(d$interval,"^([05])$")
+oneDigInterval <- cbind(oneDigInterval[,1],rep(NA,nrow(oneDigInterval)),
+                        rep(NA,nrow(oneDigInterval)),
+                        rep(NA,nrow(oneDigInterval)),oneDigInterval[,2])
+oneDigInterval[is.na(oneDigInterval)] = 0
+oneDigInterval <- apply(oneDigInterval,2,as.numeric)
+
+## Two digit intervals
+twoDigInterval <- str_match(d$interval,"^([0-5])([05])$")
+twoDigInterval <- cbind(twoDigInterval[,1],rep(NA,nrow(twoDigInterval)),
+                        rep(NA,nrow(twoDigInterval)),twoDigInterval[,2],
+                        twoDigInterval[,3])
+twoDigInterval[is.na(twoDigInterval)] = 0
+twoDigInterval <- apply(twoDigInterval,2,as.numeric)
+
+## Three digit interval
+threeDigInterval <- str_match(d$interval,"^([0-9])([0-5])([05])$")
+threeDigInterval <- cbind(threeDigInterval[,1],rep(NA,nrow(threeDigInterval)),
+                          threeDigInterval[,2],threeDigInterval[,3],
+                          threeDigInterval[,4])
+threeDigInterval[is.na(threeDigInterval)] = 0
+threeDigInterval <- apply(threeDigInterval,2,as.numeric)
+
+## Four digit interval
+fourDigInterval <- str_match(d$interval,"^([1-2])([0-9])([0-5])([05])$")
+fourDigInterval[is.na(fourDigInterval)] = 0
+fourDigInterval <- apply(fourDigInterval,2,as.numeric)
+
+## merge all 4 matrix (1 dig, 2 dig, 3 dig, 4 dig)
+## reduce list of matrix by sum its row,col values
+## paste digits with format 1o dig2d dig:3th dig4th dig
+l <- list(oneDigInterval,twoDigInterval,threeDigInterval,fourDigInterval)
+digInterval <- Reduce("+",l)
+interval <- apply(digInterval,1,function(r){paste(r[2],r[3],":",r[4],r[5],sep = "")})
+d$interval <- interval
+
+## Transform k/v steps and interval into variables and sort dataset by date
+observations <- spread(data = d, key = interval, value = steps) %>% arrange(date)
+```
+observations is a data frame with 289 variables:  
+
+* date: Date of measure
+* hh:mm : 288 variables of each 5-minute interval 
+
+## What is mean total number of steps taken per day?
+First calculate total steps per date, then add this new variable to observations
+```{r meanTotalSteps}
+totalSteps <- apply(observations[,2:ncol(observations)],1,sum,na.rm = T)
+observations <- cbind(observations,total.steps = totalSteps)
+```
+
+Now calculate mean and median total number of steps taken per day
+```{r meanMedian}
+meanStepsObservations <- mean(observations$total.steps,na.rm = T)
+medianStepsObservations <- median(observations$total.steps,na.rm = T)
+stats <- data.frame(Mean = c(meanStepsObservations),Median = c(medianStepsObservations))
+rownames(stats) <- c("All days")
+```
+
+To plot an histogram of total steps taken each day, histogram bin width needs to
+be ajusted and scaled.  
+I used a standard deviation of total steps by day and a 
+parameter for this scale. 1/4 of standard deviation shows a good distribution of
+those steps without too much aggregations.  
+Also, ajust of X axis breaks is needed to be easier to visualize amounts of steps  
+
+```{r histogramTotalSteps}
+## Use total steps standard deviation as a parameter to hist bin width
+sdv <- sd(observations$total.steps)
+minStepsDay <- min(observations$total.steps) ## Just to ajust X axis breaks
+maxStepsDay <- max(observations$total.steps) ## Just to ajust X axis breaks
+
+## Plot hist with ggplot
+h <- qplot(total.steps,data = observations, binwidth = sdv/4) +
+    scale_x_continuous(breaks = round(seq(minStepsDay,maxStepsDay, by = sdv/3),0)) + ## axis breaks
+    ylab("Number of days") + xlab("Total steps per day") + ## labels
+    ggtitle("Total Steps per day distribution") ## Graphic Title
+```
+
+Finally, this is the histogram of total number of steps taken each day  
+```{r plothist}
+print(h)
+```
+
+For those `r nrow(observations)` days observations, **mean** and **median** total number of steps are 
+```{r statsObservations,results = "asis"}
+print(xtable(stats), type = "html", html.table.attributes="class='flat-table'")
+```
+
+## What is the average daily activity pattern?
+To get an average daily activity pattern, I calculate the mean of each 5-minute interval, as they are variables of observations set.  
+Then, I just gather variables into key-value pair of 5-minute POXISct interval-number of steps and format date as HH:MM string format.  
+Finnaly, I get the maximum number of steps interval with a simple filter
+
+```{r dailypattern}
+## get mean of intervals over days
+dailyMean <- apply(observations[,2:289],2,mean,na.rm = T) 
+
+## Gather and format dataset to key-value HH:MM-Average of steps
+pattern <- data.frame(intervals = as.POSIXct(names(dailyMean), format = "%H:%M"), 
+                      steps = dailyMean, stringsAsFactors = F)
+
+g <- ggplot(pattern,aes(x = intervals, y = steps)) + 
+    scale_x_datetime(labels = date_format(format = "%H:%M", 
+                                          tz = Sys.timezone())) + geom_line()
+g <- g + xlab("5-minute Intervals") + ylab("Steps Average") + 
+    ggtitle("Average Daily Activity Pattern")
+print(g)
+
+## Get the interval with maximum number of steps
+maxInterval <- pattern %>% filter(steps == max(steps))
+```
+
+At **`r format(maxInterval$intervals,"%H:%M")`** occurs the average maximum number of steps taken as **`r round(maxInterval$steps,2)`**.  
+
+## Imputing missing values
+
+There are some missing values on this dataset. Before fill those values, let's see how many rows have missing values NAs.  
+```{r countMissing}
+## Get total of missing values excluding date variable and mean variable
+totalMissing <- sum(is.na(observations[,2:289]))
+## Get days where there are missing values
+idxMissingDays <- unique(which(is.na(observations[,2:289]),arr.ind = T)[,1])
+missingDays <- observations[idxMissingDays,]
+## Count values missing in each day and get number of missing days
+totalMissingPerDay <- apply(is.na(missingDays[,2:289]),1,sum)
+totalMissingDays <- length(missingDays$date)
+```
+
+
+This dataset has **`r totalMissing`** missing values on days:  
+```{r daysMissingValues,results = "asis"}
+## Format missing days for report
+daysMissingValues <- data.frame(Days = format(missingDays$date,"%m-%d-%Y"), 
+                                Weekday = weekdays(missingDays$date),
+                                Total.Missing = totalMissingPerDay)
+print(xtable(daysMissingValues),type = "html")
+```
+
+   
+As seen, all days that has missing values are completelly blank, that is, there 
+isn't any missing value between other values. There are only blank days.  
+If we look at Weekday column, we can get that there isn't a special weekday that values are missing. So, let's use mean of steps taken for each 5-minute interval of complete days that are the same weekdays of missing dates.  
+
+```{r fillingWeekdays}
+## Start setting weekday to observations dataset
+observations$weekday <- weekdays(observations$date)
+## Get only days with complete value set, idxMissingDays was set above with 
+##   row number of days with missing values
+fullObservations <- observations[-idxMissingDays,2:ncol(observations)]
+meanPerWeekDay <- fullObservations %>% group_by(weekday) %>% summarise_all(funs(mean))
+
+## Creating a new dataset to be filled
+filledObservations <- observations
+
+## Let's now fill missing values with mean of same week day
+## Using idxMissingDays as iterator, lets go and complete those days
+
+## First get values for missing days and sort then by date variable
+filledDays <- merge(filledObservations[idxMissingDays,c("date","weekday")],meanPerWeekDay,by = "weekday")
+filledDays <- filledDays %>% arrange(date)
+
+## Now let's complete new dataset filledObservations with missing vales
+filledObservations[idxMissingDays,2:290] <- filledDays[,3:291]
+```
+
+With dataset fullfilled, we can plot a new histogram of total steps and compare mean and median values with uncomplete dataset.
+
+Let's use the same strategy to plot new histogram  
+
+```{r completeDatasetComparation}
+## Use total steps standard deviation as a parameter to hist bin width
+sdvFullDS <- sd(filledObservations$total.steps)
+minStepsDayFullDS <- min(filledObservations$total.steps) ## Just to ajust X axis breaks
+maxStepsDayFullDS <- max(filledObservations$total.steps) ## Just to ajust X axis breaks
+
+## Plot hist with ggplot
+hFullDS <- qplot(total.steps,data = filledObservations, binwidth = sdvFullDS/4) + 
+    scale_x_continuous(breaks = round(seq(minStepsDayFullDS,maxStepsDayFullDS, by = sdvFullDS/3),0)) + ## axis breaks
+    ylab("Number of days") + xlab("Total steps per day") + ## labels
+    ggtitle("Total Steps per day distribution of fullfilled dataset") ## Graphic Title
+```
+
+Now calculate mean and median total number of steps taken per day for fullfilled DS  
+```{r meanMedianFullDS}
+meanStepsObservationsFullDS <- mean(filledObservations$total.steps)
+medianStepsObservationsFullDS <- median(filledObservations$total.steps)
+statsFullDS <- data.frame(Mean = c(meanStepsObservations,meanStepsObservationsFullDS),
+                          Median = c(medianStepsObservations,medianStepsObservationsFullDS))
+## Also, let's see percentage variation with new values to the dataset
+variation <- apply(statsFullDS,2,function(d) 1 - (d[1]/d[2]))
+statsFullDS <- rbind(statsFullDS,variation)
+rownames(statsFullDS) <- c("With missing values", "Complete dataset", "Variation")
+```
+
+This is the new histogram of fullfilled dataset  
+```{r plothistFullDS}
+print(hFullDS)
+```
+
+And those are the new values for mean and median of steps taken
+```{r statsObservationsFullDS,results = "asis"}
+print(xtable(statsFullDS, caption = c("Mean and Median comparation of uncomplete and complete datasets")), type = "html",
+      html.table.attributes="class='flat-table'")
+```
+
+As table above shows, filling missing values increases both mean steps taken and median of steps. But mean had an significant increase of `r round(statsFullDS[3,c("Mean")]*100,2)`% and median just had a smaller increase of `r round(statsFullDS[3,c("Median")]*100,2)`%.  
+
+## Are there differences in activity patterns between weekdays and weekends?
+To do comparation of activity patterns between weekdays and weekends, first we need to classify all observations into weekday or weekend.  
+I create a boolean factor telling it a specific date is a weekend day.  
+```{r weekdayWeelendCompare}
+## Working days of a week
+workingDays <- c('Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday')
+
+## fullfilled dataset already has a variable with weed day name, so, we need just 
+##   to classify all observations based on this variable
+filledObservations$day.classification <- factor(filledObservations$weekday %in% workingDays,
+                                                levels = c(F,T), 
+                                                labels = c("Weekend","Weekday"))
+
+## Let's group values by classification factor and calculate mean of each 5-minute interval
+dailyMeansByDayClassification <- filledObservations[,c(2:290,292)] %>% 
+    group_by(day.classification) %>% 
+    summarise_all(funs(mean))
+```
+
+This new object, dailyMeansByDayClassification, has 2 observations and means of all 5-minute variables and total.steps variable. Now it's possible to create a new object just with 3 variables: interval (5-minute), classification (weekday,weekend), steps (mean steps taken)
+
+```{r prepareWeekdayWeekend}
+## Create a dataframe with HH:MM - Weekday Steps - Weekend steps variables
+## There are 290 variables on dailyMeansByDayClassification, first is day.classification
+##   end last is total.steps, so, we only need 288 variables between first and last or 2:289
+intervalNames <- names(dailyMeansByDayClassification[,2:289])
+pattern <- data.frame(intervals = as.POSIXct(intervalNames,
+                                             format = "%H:%M"), 
+                      Weekend = unlist(dailyMeansByDayClassification[1,2:289]),
+                      Weekday = unlist(dailyMeansByDayClassification[2,2:289]), 
+                      stringsAsFactors = F)
+## Now gather it to Interval - Classification - Steps
+pattern <- pattern %>% gather(classification,steps, Weekend:Weekday)
+```
+
+
+Now, let's plot two piled up panels to compare activities between weekdays and weekends.
+
+```{r plotTSComparation}
+g <- ggplot(pattern,aes(x = intervals, y = steps)) + 
+    facet_grid(classification~.) + 
+    scale_x_datetime(labels = date_format(format = "%H:%M", 
+                                          tz = Sys.timezone())) + geom_line() + 
+    xlab("5-minute Intervals") + ylab("Steps Average") + 
+    ggtitle("Average Daily Activity Pattern between weekday days and weekend days")
+print(g)
+```
