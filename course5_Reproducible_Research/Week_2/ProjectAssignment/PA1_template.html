@@ -235,7 +235,7 @@ h &lt;- qplot(total.steps,data = observations, binwidth = sdv/4) +
 <p>For those 61 days observations, <strong>mean</strong> and <strong>median</strong> total number of steps are</p>
 <pre class="r"><code>print(xtable(stats), type = &quot;html&quot;, html.table.attributes=&quot;class='flat-table'&quot;)</code></pre>
 <!-- html table generated in R 3.4.1 by xtable 1.8-2 package -->
-<!-- Sat Sep  2 18:59:09 2017 -->
+<!-- Sun Sep 17 23:23:24 2017 -->
 <table class="flat-table">
 <tr>
 <th>
@@ -301,7 +301,7 @@ daysMissingValues &lt;- data.frame(Days = format(missingDays$date,&quot;%m-%d-%Y
                                 Total.Missing = totalMissingPerDay)
 print(xtable(daysMissingValues),type = &quot;html&quot;)</code></pre>
 <!-- html table generated in R 3.4.1 by xtable 1.8-2 package -->
-<!-- Sat Sep  2 18:59:10 2017 -->
+<!-- Sun Sep 17 23:23:25 2017 -->
 <table border="1">
 <tr>
 <th>
@@ -478,7 +478,7 @@ rownames(statsFullDS) &lt;- c(&quot;With missing values&quot;, &quot;Complete da
 <pre class="r"><code>print(xtable(statsFullDS, caption = c(&quot;Mean and Median comparation of uncomplete and complete datasets&quot;)), type = &quot;html&quot;,
       html.table.attributes=&quot;class='flat-table'&quot;)</code></pre>
 <!-- html table generated in R 3.4.1 by xtable 1.8-2 package -->
-<!-- Sat Sep  2 18:59:11 2017 -->
+<!-- Sun Sep 17 23:23:26 2017 -->
 <table class="flat-table">
 <caption align="bottom">
 Mean and Median comparation of uncomplete and complete datasets

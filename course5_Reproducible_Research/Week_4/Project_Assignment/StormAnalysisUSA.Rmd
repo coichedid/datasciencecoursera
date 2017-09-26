@@ -1,0 +1,338 @@
+---
+title: "Severe weather events impact analysis on population health and economy in the United States"
+author: "Clovis Chedid"
+date: "9/14/2017"
+output: 
+    html_document:
+        css: stylesheet.css
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+## Load all needed libraries
+library(lubridate)
+library(reshape2)
+library(hashmap)
+library(dplyr)
+library(xtable)
+library(ggplot2)
+library(gridExtra)
+```
+
+## Synopsis
+This study has the intention to describe how severel weather events in United States affects polulation's health and economics assets like properties and crop. To do this analysis, this work processed NOAA data about severe natural events occured in the United States and shows 2 base graphics that rank most harmful event types to population and economy.  
+Working with NOAA's dataset, it was necessary to clean event types and relate them to 48 official event types declared by NOAA. Also, the full dataset was subsetted, removing summaries and events like coldest day in july, and also some event types difficult to relationate to NOAA's types but with irrelevant values measured to this study.  
+Finnaly, this report shows some details of ranked event types like means of fatality/injury and means of property/crop damages.  
+
+## Data Processing
+This analysis uses data of NOAA storm database, that can be downloaded form [John Hopkins' Data Science Course on Coursera](https://d396qusza40orc.cloudfront.net/repdata%2Fdata%2FStormData.csv.bz2).  
+This dataset consists on 902297 observations of 37 variables. This is a hudge amount of data and for performance optimizations, the load process will be cached.   
+First of all, it is needed to load whole data into an object. As it is a comma-separeated file, read.csv is enought. 
+
+```{r loadData, cache=TRUE}
+stormsData <- read.csv("./data/StormData.csv.bz2",stringsAsFactors = F)
+```
+
+This dataset needs some ajusts, but before do those transformations, let explore this dataset and define when measures become significant, as explained on NOAA documentation, at beginning, just a few observations of different types os storms was registered.  
+Also, there are some observaions that are summaries of a specific day.  
+Uncomplete observations or summaries are not relevant to this analysis, so they can be excluded from dataset.  
+On [NOAA documentation](https://www.ncdc.noaa.gov/stormevents/details.jsp?type=eventtype), there is a relevant information about completition of dataset. From 1996, all kind of storm was recorded. This work takes this information in account to filter relevant data.
+
+```{r findRelevantBeginYear, cache=TRUE}
+## First lets get a dataset from 1996
+years <- colsplit(string = stormsData$BGN_DATE, pattern = " ", names = c("p1","p2"))$p1
+years <- as.numeric(colsplit(string = years, pattern = "/", names = c("m","d","y"))$y)
+stormsData$YEAR <- years
+years <- years >= 1996
+stormsData1996 <- stormsData[years,]
+
+## Also, we need to exclude evtype like "Summary of", "RECORD", "UNSEASONABLE"
+##  "OTHER", "WET MONTH", "WET YEAR", "METRO STORM, MAY 26", "NO SEVERE WEATHER", 
+##  "NONE", "UNSEASONAL" and other as they aren't well classified by NOAA
+s <- grep("summary",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("record",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("unseasonable",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("unseasonably",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("other",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("wet month",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("wet year",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("METRO STORM, MAY 26",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("NO SEVERE WEATHER",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("NONE",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("UNSEASONAL",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("ABNORMAL WARMTH",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("UNUSUAL WARMTH",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("UNUSUALLY",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("MONTHLY PRECIPITATION",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("MONTHLY TEMPERATURE",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+s <- grep("ABNORMALLY DRY",stormsData1996$EVTYPE,ignore.case = T)
+stormsData1996 <- stormsData1996[-s,]
+```
+
+Now, it is time to begin tidy data to be possible to do analysis.  
+
+1. We only need date variable, storm types, population damages and economics consequences
+```{r baseDataTransformations_subsetvariables, cache=TRUE}
+## 1. Start with only necessary variables: BGN_DATE, EVTYPE, FATALITIES, INJURIES, PROPDMG, 
+##    PROPDMGEXP, CROPDMG and CROPDMGEXP
+df <- stormsData1996[,c("BGN_DATE","EVTYPE","FATALITIES","INJURIES","PROPDMG",
+                    "PROPDMGEXP","CROPDMG","CROPDMGEXP","YEAR")]
+```
+
+2. We need to type cast date variable
+```{r baseDataTransformations_castDate, cache=TRUE}
+## 2. Transform char date to date type variable
+df$BGN_DATE <- colsplit(string = df$BGN_DATE, pattern = " ", 
+                        names = c("p1","p2"))$p1
+df$BGN_DATE <- mdy(df$BGN_DATE)
+```
+
+3. We need to make economics consequences into real valaues based on exp variables.  
+This implies in a product of CROP and PROP DMG variables by expoent values of DMGEXP respective variables.
+As in a proposal found in course forum [How To Handle Exponent Value of PROPDMGEXP and CROPDMGEXP](https://rstudio-pubs-static.s3.amazonaws.com/58957_37b6723ee52b455990e149edde45e5b6.html) values of DMGEXP variables can be handled as following:
+
+* H,h,K,k,M,m,B,b,+,-,?,0,1,2,3,4,5,6,7,8, and blank-character
+* H,h = hundreds = 100
+* K,k = kilos = thousands = 1,000
+* M,m = millions = 1,000,000
+* B,b = billions = 1,000,000,000
+* (+) = 1
+* (-) = 0
+* (?) = 0
+* black/empty character = 0
+* numeric 0..8 = 10
+
+With this values, it is possible to create a hashmap to use as translation to product of DMG and DMGEXP variables.  
+
+```{r baseDataTransformations_economicValues, cache=TRUE}
+## 3. Transform economic damage variables and apply exponent on base values
+## Lowering exponents
+df$PROPDMGEXP <- tolower(df$PROPDMGEXP) 
+df$CROPDMGEXP <- tolower(df$CROPDMGEXP)
+expValues <- hashmap(c("h","k","m","b","+","-","?","0","1","2","3","4","5","6",
+                       "7","8",""),
+                     c(100,1000,1000000,1000000000,1,0,0,10,10,10,10,10,10,10,
+                       10,10,0))
+df <- df %>% mutate(CROPDMGREAL = CROPDMG * expValues[[CROPDMGEXP]]) %>%
+    mutate(PROPDMGREAL = PROPDMG * expValues[[PROPDMGEXP]])
+```
+
+4. We need to setup storm types based on NOAA list of storm types
+```{r baseDataTransformations_EVTypes, cache=TRUE}
+## 4. Set correct names for EV_TYPES
+
+## Start with setting Upper Case to all EVTypes
+df$EVTYPE <- toupper(df$EVTYPE)
+df$EVTYPE.FINAL <- rep(NA,nrow(df)) ## New variable with correspondent Event Type
+
+## Events from NOAA documentation expanded with dataset samples
+officialEventTypes <- c("Astronomical Low Tide", "Astronomical High Tide", 
+                        "Avalanche", "Blizzard", 
+                        "Coastal Flood", "Cold/Wind Chill",
+                        "Cold Chill","Wind Chill", "Debris Flow","Landslide", 
+                        "Dense Fog", "Dense Smoke", "Drought", "Dust Devil", 
+                        "Dust Storm", "Excessive Heat", "Extreme Cold/Wind Chill",
+                        "Extreme Cold Chill","Extreme Cold", 
+                        "Extreme Wind Chill", "Extreme WindChill",
+                        "Flash Flood", "Flood", "Frost/Freeze", 
+                        "Frost", "Freeze", 
+                        "Funnel Cloud", "Freezing Fog", "Freezing Rain", "Fog", 
+                        "Hail", "Heat", 
+                        "Heavy Rain", "URBAN/SML STREAM FLD", 
+                        "Heavy Snow", "High Surf", "High Wind", 
+                        "Hurricane", "Ice Storm", "Lake-Effect Snow", 
+                        "Lakeshore Flood", "Lightning", "Marine Hail", 
+                        "Marine High Wind", "Marine Strong Wind", 
+                        "Marine Thunderstorm Wind", "Rip Current", "Seiche", 
+                        "Sleet", "Storm Surge/Tide", "Storm Surge", 
+                        "Storm Tide","Strong Wind", 
+                        "Thunderstorm Wind", "TSTM Wind", "TSTM", 
+                        "THUNDERSTORM", "Tornado", 
+                        "Tropical Depression", 
+                        "Tropical Storm", "Tsunami", "Volcanic Ash", "Waterspout", 
+                        "Wildfire", "Wild/Forest fire", "Winter Storm", "Winter Weather")
+## Events Correct labels from NOAA
+officialEventTypesLbls <- c("Astronomical Low Tide", "Astronomical Low Tide",
+                            "Avalanche", "Blizzard", 
+                        "Coastal Flood", "Cold/Wind Chill",
+                        "Cold/Wind Chill","Cold/Wind Chill", "Debris Flow",
+                        "Debris Flow", 
+                        "Dense Fog", "Dense Smoke", "Drought", "Dust Devil", 
+                        "Dust Storm", "Excessive Heat", "Extreme Cold/Wind Chill",
+                        "Extreme Cold/Wind Chill","Extreme Cold/Wind Chill", 
+                        "Extreme Cold/Wind Chill", "Extreme Cold/Wind Chill",
+                        "Flash Flood", "Flood", "Frost/Freeze", 
+                        "Frost/Freeze", "Frost/Freeze", 
+                        "Funnel Cloud", "Freezing Fog", "Freezing Fog", "Freezing Fog", 
+                        "Hail", "Heat", 
+                        "Heavy Rain", "Heavy Rain", "Heavy Snow", 
+                        "High Surf", "High Wind", 
+                        "Hurricane", "Ice Storm", "Lake-Effect Snow", 
+                        "Lakeshore Flood", "Lightning", "Marine Hail", 
+                        "Marine High Wind", "Marine Strong Wind", 
+                        "Marine Thunderstorm Wind", "Rip Current", "Seiche", 
+                        "Sleet", "Storm Surge/Tide", "Storm Surge/Tide", 
+                        "Storm Surge/Tide","Strong Wind", 
+                        "Thunderstorm Wind", "Thunderstorm Wind",
+                        "Thunderstorm Wind", "Thunderstorm Wind", "Tornado", 
+                        "Tropical Depression", 
+                        "Tropical Storm", "Tsunami", "Volcanic Ash", "Waterspout", 
+                        "Wildfire", "Wildfire", "Winter Storm", "Winter Weather")
+
+officialEventTypes <- toupper(officialEventTypes)
+hsOfficialEventTypes <- hashmap(officialEventTypes,officialEventTypesLbls)
+
+## Matching different event names with those official from NOAA
+for (evType in officialEventTypes) {
+    matches <- grepl(evType,df$EVTYPE)
+    df[matches,c("EVTYPE.FINAL")] <- rep(hsOfficialEventTypes[[evType]],sum(matches))
+}
+```
+
+With those performed transformations, we have `r sum(!is.na(df$EVTYPE.FINAL))` observations well classified and only `r sum(is.na(df$EVTYPE.FINAL))` with some problem with classification. This is just `r round((sum(is.na(df$EVTYPE.FINAL))/nrow(df))*100,2)`% of dataset.  
+For now, lets go ahead and see how relevant are these few observations.  
+
+```{r statsUnclassifiedObs}
+evtypesSummary <- df %>% filter(is.na(EVTYPE.FINAL)) %>% 
+    group_by(EVTYPE) %>% 
+    summarise(fats = sum(FATALITIES), inj = sum(INJURIES), prop = sum(PROPDMGREAL), 
+              crop = sum(CROPDMGREAL))
+
+## Max values of fatalities, injuries, properties and crop damages
+maxEvtypes <- summarise(evtypesSummary,fatalities = max(fats), injuries = max(inj), 
+                        property.damages = max(prop), crop.damages = max(crop))
+
+knownEvtypesSummary <- df %>% filter(!is.na(EVTYPE.FINAL)) %>% 
+    group_by(EVTYPE) %>% 
+    summarise(fats = sum(FATALITIES), inj = sum(INJURIES), prop = sum(PROPDMGREAL), 
+              crop = sum(CROPDMGREAL))
+
+## Mean values of fatalities, injuries, properties and crop damages well classified
+meanKnownEvtypes <- summarise(knownEvtypesSummary,fatalities = mean(fats), 
+                             injuries = mean(inj), 
+                             property.damages = mean(prop), 
+                             crop.damages = mean(crop))
+
+stats <- data.frame(Fatalities = c(maxEvtypes$fatalities,meanKnownEvtypes$fatalities),
+                    Injuries = c(maxEvtypes$injuries,meanKnownEvtypes$injuries),
+                    Property.Damages = c(maxEvtypes$property.damages,meanKnownEvtypes$property.damages),
+                    Crop.Damages = c(maxEvtypes$crop.damages,meanKnownEvtypes$crop.damages))
+rownames(stats) <- c("Unclassified events","NOAA events")
+```
+
+```{r printComparation,results = "asis"}
+## Comparing table of unclassified and classified values
+xtb <- xtable(stats)
+names(xtb) <- c("Fatalities", "Injuries", "Property Damages", "Crop Damages")
+print(xtb, type = "html", html.table.attributes="class='flat-table'")
+```
+
+As seen, comparing max damages for unclassified damages and average damages for classified damages, those unclassified events are irrelevant and can be excluded from working dataset.   
+
+```{r excludeUnclassified}
+## Subset unclassified observations
+df <- df[!is.na(df$EVTYPE.FINAL),]
+## Subset interested observations
+df <- df[,c("YEAR","EVTYPE.FINAL","FATALITIES","INJURIES","PROPDMGREAL","CROPDMGREAL")]
+```
+
+As dataset is clean and tidy, lets prepare data to respond those two question:
+
+1. What are the most harmful types of events with respect to population health;
+2. What are the event types has the greatest economic consequences
+
+To evaluate most harmful event types, lets group our dataset by event type, totallizing fatalities, injuries, property and crop damages individualy and also calculating average of each of them.  
+
+```{r healthConsolidation}
+## Group dataset by EVTYPE and summarise variables by sum and mean
+dfConsolidation <- df %>%
+    mutate(TOTALDMG = PROPDMGREAL + CROPDMGREAL) %>%
+    group_by(EVTYPE.FINAL) %>%
+    summarise(Total.Fatalities = sum(FATALITIES), 
+              Total.Injuries = sum(INJURIES),
+              Mean.Fatalities = mean(FATALITIES),
+              Mean.Injuries = mean(INJURIES),
+              Total.Property.Damages = sum(PROPDMGREAL),
+              Total.Crop.Damages = sum(CROPDMGREAL),
+              Total.Damage = (Total.Property.Damages + Total.Crop.Damages),
+              Mean.Total.Damage = mean(TOTALDMG),
+              Mean.Property.Damages = mean(PROPDMGREAL),
+              Mean.Crop.Damages = mean(CROPDMGREAL))
+
+top5Fatalities <- head(arrange(dfConsolidation,desc(Mean.Fatalities)),5)
+top5MeanTotalDamages <- head(arrange(dfConsolidation,
+                                    desc(Mean.Total.Damage)),5)
+```
+## Results
+
+To understand event types consequences to population health, first, let's do a plot comparing fatalities and injuries for each event type.
+
+```{r healthPlots}
+## Single data.frame with top 5 event types on fatalities and correspondent injuries
+tb <- xtable(top5Fatalities[,c("EVTYPE.FINAL",
+                             "Mean.Fatalities",
+                             "Mean.Injuries")])
+names(tb) <- c("Event Type", "Mean of Fatalities", "Mean of Injuries")
+
+## Plot of fatalities and injuries
+fatality_injuryPlot <- qplot(Mean.Fatalities, Mean.Injuries,data = dfConsolidation, color = EVTYPE.FINAL)
+fatality_injuryPlot + 
+    scale_color_discrete(name = "Event types") +
+    labs(x = "Mean of fatalities", 
+         y = "Mean of injuries", 
+         title = "Fatalities and Injuries by Event Types")
+```
+
+As seen, the 5 greatest means of fatalities of event types are also significant in terms of injuries. To better visualise these event types, below we have a table of these event types and correspondt fatalities and injuiries means.
+
+```{r printTop10InjuryFatality,results = "asis"}
+print(tb, type = "html", 
+      html.table.attributes="class='flat-table'")
+```
+
+
+Now, let's see how Property damages and Crop damages are related by each event type. Both variables are measured in US Dollars, so we can sum these two variables and work with mean of total damage. Below we have a plot of mean of total damage of each type of event.
+
+```{r economicPlots, fig.height=10}
+## Single data.frame with top 5 damages
+tb <- xtable(top5MeanTotalDamages[,c("EVTYPE.FINAL",
+                             "Mean.Total.Damage",
+                             "Mean.Property.Damages",
+                             "Mean.Crop.Damages")])
+names(tb) <- c("Event Type", "Mean of Total Damage", 
+               "Mean of Property Damages", "Mean of Crop Damages")
+
+## Plot of damages
+damagesPlot <- ggplot(data = dfConsolidation,
+                      aes(x = EVTYPE.FINAL,y = Mean.Total.Damage)) +
+    geom_bar(stat = "identity") + 
+    coord_flip() +
+    labs(y = "Mean of total damage", 
+         x = "Event Type",
+         title = "Property Damages and Crop Damages by Event Types")
+
+damagesPlot
+```
+
+As graphic shows, there are 5 top most impactful event types for economy. The graphic above does not shows these types in details. Below we can see a table with Property and Crop damage means of this top 5.
+
+```{r tableEconomics,results = "asis"}
+print(tb, type = "html", 
+      html.table.attributes="class='flat-table'")
+```

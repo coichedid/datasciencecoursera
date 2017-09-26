@@ -156,7 +156,7 @@ print(xtable(stats), type = "html", html.table.attributes="class='flat-table'")
 ```
 
 <!-- html table generated in R 3.4.1 by xtable 1.8-2 package -->
-<!-- Sat Sep  2 18:59:09 2017 -->
+<!-- Sun Sep 17 23:23:24 2017 -->
 <table class='flat-table'>
 <tr> <th>  </th> <th> Mean </th> <th> Median </th>  </tr>
   <tr> <td align="right"> All days </td> <td align="right"> 9354.23 </td> <td align="right"> 10395 </td> </tr>
@@ -220,7 +220,7 @@ print(xtable(daysMissingValues),type = "html")
 ```
 
 <!-- html table generated in R 3.4.1 by xtable 1.8-2 package -->
-<!-- Sat Sep  2 18:59:10 2017 -->
+<!-- Sun Sep 17 23:23:25 2017 -->
 <table border=1>
 <tr> <th>  </th> <th> Days </th> <th> Weekday </th> <th> Total.Missing </th>  </tr>
   <tr> <td align="right"> 1 </td> <td> 10-01-2012 </td> <td> Monday </td> <td align="right"> 288 </td> </tr>
@@ -308,7 +308,7 @@ print(xtable(statsFullDS, caption = c("Mean and Median comparation of uncomplete
 ```
 
 <!-- html table generated in R 3.4.1 by xtable 1.8-2 package -->
-<!-- Sat Sep  2 18:59:11 2017 -->
+<!-- Sun Sep 17 23:23:26 2017 -->
 <table class='flat-table'>
 <caption align="bottom"> Mean and Median comparation of uncomplete and complete datasets </caption>
 <tr> <th>  </th> <th> Mean </th> <th> Median </th>  </tr>
